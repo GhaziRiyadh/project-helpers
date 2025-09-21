@@ -1,0 +1,72 @@
+services:
+  mariadb:
+    image: mariadb:latest
+    container_name: mariadb
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      SERVICE_TAGS: dev
+      MYSQL_CHARSET: utf8
+      MYSQL_COLLATION: utf8_general_ci
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./db:/docker-entrypoint-initdb.d
+    ports:
+      - 3306:3306
+    networks:
+      - internal
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: my-phpmyadmin
+    restart: unless-stopped
+    volumes:
+      - mysql-data:/var/lib/mysql
+    depends_on:
+      - db
+    environment:
+      PMA_HOST: mariadb
+      PMA_USER: root
+      PMA_PASSWORD: ${DB_ROOT_PASSWORD}
+    ports:
+      - "8080:80"
+    networks:
+      - internal
+
+  redis:
+    image: redis:latest
+    container_name: redis
+    restart: unless-stopped
+    networks:
+      - internal
+
+  memcached:
+    image: memcached
+    container_name: redis
+    restart: unless-stopped
+    command:
+      - --conn-limit=1024
+      - --memory-limit=64
+      - --threads=4
+
+  postgres:
+    image: postgres
+    restart: unless-stopped
+    container_name: postgres
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - internal
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_ROOT_PASSWORD}
+
+volumes:
+  mysql-data:
+  postgres-data:
+
+
+networks:
+  internal:
