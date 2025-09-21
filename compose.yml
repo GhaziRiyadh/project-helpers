@@ -6,9 +6,8 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
       TZ: UTC
-    command: >
-      mysqld --character-set-server=utf8mb4
-             --collation-server=utf8mb4_general_ci
+      MARIADB_CHARACTER_SET_SERVER: utf8mb4
+      MARIADB_COLLATION_SERVER: utf8mb4_general_ci
     volumes:
       - mariadb-data:/var/lib/mysql
     ports:
