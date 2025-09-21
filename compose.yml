@@ -1,72 +1,111 @@
 services:
   mariadb:
-    image: mariadb:latest
-    container_name: mariadb
+    image: mariadb:11.4
+    container_name: dev-mariadb
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
-      SERVICE_TAGS: dev
-      MYSQL_CHARSET: utf8
-      MYSQL_COLLATION: utf8_general_ci
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+      TZ: UTC
+    command: >
+      mysqld --character-set-server=utf8mb4
+             --collation-server=utf8mb4_general_ci
     volumes:
-      - mysql-data:/var/lib/mysql
-      - ./db:/docker-entrypoint-initdb.d
+      - mariadb-data:/var/lib/mysql
     ports:
-      - 3306:3306
+      - "3306:3306"
     networks:
-      - internal
+      - devnet
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${DB_ROOT_PASSWORD}"]
+      interval: 10s
+      retries: 5
+      start_period: 20s
 
   phpmyadmin:
-    image: phpmyadmin:latest
-    container_name: my-phpmyadmin
+    image: phpmyadmin:5.2
+    container_name: dev-phpmyadmin
     restart: unless-stopped
-    volumes:
-      - mysql-data:/var/lib/mysql
     depends_on:
-      - db
+      - mariadb
     environment:
       PMA_HOST: mariadb
+      PMA_PORT: 3306
       PMA_USER: root
-      PMA_PASSWORD: ${DB_ROOT_PASSWORD}
+      PMA_PASSWORD: ${DB_ROOT_PASSWORD:-root}
     ports:
       - "8080:80"
     networks:
-      - internal
-
-  redis:
-    image: redis:latest
-    container_name: redis
-    restart: unless-stopped
-    networks:
-      - internal
-
-  memcached:
-    image: memcached
-    container_name: redis
-    restart: unless-stopped
-    command:
-      - --conn-limit=1024
-      - --memory-limit=64
-      - --threads=4
+      - devnet
 
   postgres:
-    image: postgres
+    image: postgres:16
+    container_name: dev-postgres
     restart: unless-stopped
-    container_name: postgres
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+      POSTGRES_DB: ${DB_NAME:-appdb}
+      TZ: UTC
     volumes:
       - postgres-data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     networks:
-      - internal
+      - devnet
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 10s
+      retries: 5
+      start_period: 20s
+
+  adminer:
+    image: adminer:4.8.1
+    container_name: dev-adminer
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${DB_ROOT_PASSWORD}
+      ADMINER_DEFAULT_SERVER: postgres
+    depends_on:
+      - postgres
+    ports:
+      - "8081:8080"
+    networks:
+      - devnet
+
+  redis:
+    image: redis:7.2
+    container_name: dev-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - devnet
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      retries: 5
+      start_period: 10s
+
+  memcached:
+    image: memcached:1.6
+    container_name: dev-memcached
+    restart: unless-stopped
+    command:
+      - --conn-limit=1024
+      - --memory-limit=64
+      - --threads=4
+    ports:
+      - "11211:11211"
+    networks:
+      - devnet
+    healthcheck:
+      test: ["CMD", "bash", "-c", "echo stats | nc 127.0.0.1 11211 || exit 1"]
+      interval: 30s
+      retries: 3
 
 volumes:
-  mysql-data:
+  mariadb-data:
   postgres-data:
 
-
 networks:
-  internal:
+  devnet:
+    driver: bridge
