@@ -28,9 +28,6 @@ services:
       - mariadb
     environment:
       PMA_HOST: mariadb
-      PMA_PORT: 3306
-      PMA_USER: root
-      PMA_PASSWORD: ${DB_ROOT_PASSWORD:-root}
     ports:
       - "8080:80"
     networks:
@@ -100,6 +97,25 @@ services:
       test: [ "CMD", "bash", "-c", "echo stats | nc 127.0.0.1 11211 || exit 1" ]
       interval: 30s
       retries: 3
+
+  mongo:
+    image: mongo
+    restart: always
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: 123
+
+  mongo-express:
+    image: mongo-express
+    restart: always
+    ports:
+      - 8081:8081
+    environment:
+      ME_CONFIG_MONGODB_URL: mongodb://root:123@mongo:27017/
+      ME_CONFIG_BASICAUTH_ENABLED: true
+      ME_CONFIG_BASICAUTH_USERNAME: mongoexpressuser
+      ME_CONFIG_BASICAUTH_PASSWORD: 123
+
 
 volumes:
   mariadb-data:
