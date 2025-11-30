@@ -8,6 +8,8 @@ services:
       TZ: UTC
       MARIADB_CHARACTER_SET_SERVER: utf8mb4
       MARIADB_COLLATION_SERVER: utf8mb4_general_ci
+      MYSQL_USER: ${DB_USER:-root}
+      MYSQL_DATABASE: ${DB_NAME:-appdb}
     volumes:
       - mariadb-data:/var/lib/mysql
     ports:
@@ -15,7 +17,7 @@ services:
     networks:
       - devnet
     healthcheck:
-      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-p${DB_ROOT_PASSWORD}" ]
+      test: ["CMD-SHELL", "mysqladmin ping -h mariadb -u${DB_USER:-root} -p${DB_ROOT_PASSWORD:-123} || exit 1"]
       interval: 10s
       retries: 5
       start_period: 20s
@@ -29,7 +31,7 @@ services:
     environment:
       PMA_HOST: mariadb
       PMA_PORT: 3306
-      PMA_USER: ${DB_USER:-123}
+      PMA_USER: ${DB_USER:-root}
       PMA_PASSWORD: ${DB_ROOT_PASSWORD:-123}
     ports:
       - "8080:80"
@@ -52,13 +54,13 @@ services:
     networks:
       - devnet
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}" ]
+      test: ["CMD-SHELL", "pg_isready -h postgres -U ${DB_USER:-postgres} || exit 1"]
       interval: 10s
       retries: 5
       start_period: 20s
 
   adminer:
-    image: adminer
+    image: adminer:latest
     container_name: dev-adminer
     restart: unless-stopped
     environment:
@@ -66,7 +68,7 @@ services:
     depends_on:
       - postgres
     ports:
-      - "8081:8080"
+      - "8083:8080"   # changed to avoid conflict with mongo-express
     networks:
       - devnet
 
@@ -79,56 +81,108 @@ services:
     networks:
       - devnet
     healthcheck:
-      test: [ "CMD", "redis-cli", "ping" ]
+      test: ["CMD", "redis-cli", "-h", "redis", "ping"]
       interval: 10s
       retries: 5
       start_period: 10s
 
   memcached:
-    image: memcached
+    image: memcached:latest
     container_name: dev-memcached
     restart: unless-stopped
     command:
-      - --conn-limit=1024
-      - --memory-limit=64
-      - --threads=4
+      - -c 1024
+      - -m 64
+      - -t 4
     ports:
       - "11211:11211"
     networks:
       - devnet
     healthcheck:
-      test: [ "CMD", "bash", "-c", "echo stats | nc 127.0.0.1 11211 || exit 1" ]
+      test: ["CMD-SHELL", "echo stats | nc 127.0.0.1 11211 || exit 1"]
       interval: 30s
       retries: 3
+      start_period: 10s
 
   mongo:
-    image: mongo
-    restart: always
+    image: mongo:latest
+    container_name: dev-mongo
+    restart: unless-stopped
     ports:
-      - 27017:27017
+      - "27017:27017"
     environment:
-      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME:-root}
       MONGO_INITDB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-123}
     volumes:
       - mongo-data:/data/db
+    networks:
+      - devnet
+    healthcheck:
+      test: ["CMD-SHELL", "mongo --quiet --eval \"db.adminCommand('ping')\" -u ${MONGO_INITDB_ROOT_USERNAME:-root} -p ${DB_ROOT_PASSWORD:-123} --authenticationDatabase admin --host mongo || exit 1"]
+      interval: 10s
+      retries: 5
+      start_period: 20s
 
   mongo-express:
-    image: mongo-express
-    restart: always
+    image: mongo-express:latest
+    container_name: dev-mongo-express
+    restart: unless-stopped
     ports:
-      - 8081:8081
+      - "8081:8081"
     environment:
-      ME_CONFIG_MONGODB_URL: mongodb://root:${DB_ROOT_PASSWORD:-123}@mongo:27017/
-      ME_CONFIG_BASICAUTH_ENABLED: true
+      ME_CONFIG_MONGODB_URL: "mongodb://${MONGO_INITDB_ROOT_USERNAME:-root}:${DB_ROOT_PASSWORD:-123}@mongo:27017/"
+      ME_CONFIG_BASICAUTH_ENABLED: "true"
       ME_CONFIG_BASICAUTH_USERNAME: mongoexpressuser
       ME_CONFIG_BASICAUTH_PASSWORD: ${DB_ROOT_PASSWORD:-123}
-      
+    depends_on:
+      - mongo
+    networks:
+      - devnet
 
+  # zookeeper:
+  #   image: zookeeper:latest
+  #   restart: always
+  #   ports:
+  #     - 2181:2181
+  #   networks:
+  #     - devnet
+
+  # kafka:
+  #   image: apache/kafka:latest
+  #   container_name: dev-kafka
+  #   restart: unless-stopped
+  #   ports:
+  #     - "9092:9092"
+  #   environment:
+  #     KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+  #     KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+  #     KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+  #     KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+  #   depends_on:
+  #     - zookeeper
+  #   volumes:
+  #     - kafka-data:/kafka
+  #   networks:
+  #     - devnet
+
+  # kafka-ui:
+  #   image: provectuslabs/kafka-ui:latest
+  #   container_name: dev-kafka-ui
+  #   restart: unless-stopped
+  #   ports:
+  #     - "8082:8080"
+  #   environment:
+  #     KAFKA_CLUSTERS_0_NAME: local
+  #     KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+  #     KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+  #   networks:
+  #     - devnet
 
 volumes:
   mariadb-data:
   postgres-data:
-
+  mongo-data:
+  kafka-data:
 
 networks:
   devnet:
