@@ -4,7 +4,7 @@ services:
     container_name: dev-mariadb
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-123}
       TZ: UTC
       MARIADB_CHARACTER_SET_SERVER: utf8mb4
       MARIADB_COLLATION_SERVER: utf8mb4_general_ci
@@ -28,6 +28,9 @@ services:
       - mariadb
     environment:
       PMA_HOST: mariadb
+      PMA_PORT: 3306
+      PMA_USER: ${DB_USER:-123}
+      PMA_PASSWORD: ${DB_ROOT_PASSWORD:-123}
     ports:
       - "8080:80"
     networks:
@@ -39,7 +42,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_ROOT_PASSWORD:-root}
+      POSTGRES_PASSWORD: ${DB_ROOT_PASSWORD:-123}
       POSTGRES_DB: ${DB_NAME:-appdb}
       TZ: UTC
     volumes:
@@ -105,7 +108,9 @@ services:
       - 27017:27017
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: 123
+      MONGO_INITDB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-123}
+    volumes:
+      - mongo-data:/data/db
 
   mongo-express:
     image: mongo-express
@@ -113,10 +118,10 @@ services:
     ports:
       - 8081:8081
     environment:
-      ME_CONFIG_MONGODB_URL: mongodb://root:123@mongo:27017/
+      ME_CONFIG_MONGODB_URL: mongodb://root:${DB_ROOT_PASSWORD:-123}@mongo:27017/
       ME_CONFIG_BASICAUTH_ENABLED: true
       ME_CONFIG_BASICAUTH_USERNAME: mongoexpressuser
-      ME_CONFIG_BASICAUTH_PASSWORD: 123
+      ME_CONFIG_BASICAUTH_PASSWORD: ${DB_ROOT_PASSWORD:-123}
       
 
 
