@@ -33,6 +33,7 @@ services:
       PMA_PORT: 3306
       PMA_USER: ${DB_USER:-root}
       PMA_PASSWORD: ${DB_ROOT_PASSWORD:-123}
+      UPLOAD_LIMIT: 3G
     ports:
       - "8080:80"
     networks:
