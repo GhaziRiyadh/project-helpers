@@ -12,12 +12,33 @@ services:
       MYSQL_DATABASE: ${DB_NAME:-appdb}
     volumes:
       - mariadb-data:/var/lib/mysql
+      # - ./config/my.cnf:/etc/mysql/conf.d/my.cnf
     ports:
       - "3306:3306"
     networks:
       - devnet
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h mariadb -u${DB_USER:-root} -p${DB_ROOT_PASSWORD:-123} || exit 1"]
+      interval: 10s
+      retries: 5
+      start_period: 20s
+
+  mysql:
+    image: mysql:8.0
+    container_name: dev-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-123}
+      MYSQL_USER: ${DB_USER:-root}
+      MYSQL_DATABASE: ${DB_NAME:-appdb}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    ports:
+      - "3307:3306"
+    networks:
+      - devnet
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u${DB_USER:-root} -p${DB_ROOT_PASSWORD:-123} || exit 1"]
       interval: 10s
       retries: 5
       start_period: 20s
@@ -180,6 +201,7 @@ services:
   #     - devnet
 
 volumes:
+  mysql-data:
   mariadb-data:
   postgres-data:
   mongo-data:
